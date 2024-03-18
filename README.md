@@ -2,7 +2,8 @@
 
 CScraper is a web scraper and live monitoring tool for the marketplace Carousell. 
 > [!NOTE]
-> Support only for SG 
+> Support only for SG
+
 > [!WARNING]
 > Use this ethically as web scraping is heavily discouraged on this platform. Do not scrape more than needed.
 > Once per 10 minutes is good enough
