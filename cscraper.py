@@ -58,16 +58,50 @@ def parse_info(item_div, mode=1):
 if __name__ == "__main__":
     ps = argparse.ArgumentParser()
     ps.add_argument('-i', '--item', type=str, help='Name of the item to scrape')
-    ps.add_argument('-p', '--page', type=int, help='Up to how many pages to scrap? Each page is 23-25 listings: ')
+    ps.add_argument('-p', '--page', type=int, help='Number of pages (approx 50 per page)')
+    ps.add_argument('-o', '--output', type=str, help='CSV file to write out to')
+    ps.add_argument('-t', '--test', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure, 
+        using a snapshot of a bs4 object while overriding these flags with the respective values: -i shirakami fubuki -p 1''')
+    args = ps.parse_args()
     print("Author: Andrew Higgins")
     print("https://github.com/speckly")
     print("Creating webdriver")
-    home = 'https://sg.carousell.com'
-    # item = input('Enter item to scrape: ')
-    item = 'shirakami fubuki'
-    # page_limit = int(input('Up to how many pages to scrap? Each page is 23-25 listings: '))
-    page_limit = 1
     
+    if args.item:
+        item = args.page
+    else:
+        item = input('Up to how many pages to scrap? Each page is 23-25 listings: ')
+    if args.page:
+        page_limit = args.page
+    else: 
+        while True:
+            inp = input('Number of pages (approx 50 per page): ')
+            if inp.isdigit():
+                page_limit = int(inp)
+                break
+            else:
+                print("Invalid integer")
+    if args.output:
+        if not re.match(r'^[a-zA-Z0-9_\-]+\.csv$', args.output):
+            output_file = args.output
+        else:
+            print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
+            exit()
+    else:
+        while True:
+            inp = input('Enter the name for the CSV file: ')
+            if re.match(r'^[a-zA-Z0-9_\-]+\.csv$', inp):
+                csv_filename = inp
+                break
+            else:
+                print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
+    if args.test:
+        item = 'shirakami fubuki'
+        page_limit = 1
+        if args.item or args.page:
+            print('Entered test mode, overriding some user provided arguments with -i shirakami fubuki -p 1') 
+
+    home = 'https://sg.carousell.com'
     subdirs = f'/search/{urllib.parse.quote(item)}'
     parameters = f'?addRecent=false&canChangeKeyword=false&includeSuggestions=false&sort_by=3'
     opts = Options()
@@ -75,15 +109,12 @@ if __name__ == "__main__":
     driver = webdriver.Chrome(options=opts)
     driver.minimize_window()
     print(f'Chrome Web Driver loaded. Version: {driver.capabilities["browserVersion"]}\n')  # use "version" on Linux
-    parse_mode = 1  # Carousell have 2 formats of their item divs. See below comment for more info.
-    tries = 1
-
-
+    
     try:
         print(f'Retrieving search results on {item}...')
         search_results_soup = request_page(home+subdirs+parameters)
-        with open("soup.pkl", "rb") as f:
-            search_results_soup = pickle.load(f)
+        # with open("soup.pkl", "rb") as f:
+        #     search_results_soup = pickle.load(f)
         # Strip down
         browse_listings_divs = search_results_soup.find(class_="asm-browse-listings")
         item_divs_class = browse_listings_divs.select_one('.asm-browse-listings > div > div > div > div > div')['class']
@@ -94,6 +125,8 @@ if __name__ == "__main__":
     except AttributeError as e:  # no item_divs at all
         raise RuntimeError('The search has returned no result.')
 
+    parse_mode = 1
+    tries = 1
     while tries < 5:  # retrying loop as the div class position is random
         try:
             items_list = []
