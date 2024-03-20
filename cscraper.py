@@ -23,10 +23,11 @@ def request_page(url):
     timeout = 5
     while page < page_limit:
         try:
-            next_page_btn = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, '//main[1]/div/button[.="Load more"]')))  # wait max timeout sec for loading
+            next_page_btn = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, '//button[contains(text(), "Show more results")]')))  # wait max timeout sec for loading
             driver.execute_script("arguments[0].click();", next_page_btn)  # click the load more button through ads
             page += 1
         except TimeoutException as e:
+            print("Button not found, reached end of page or load more button not found.")
             break
     time.sleep(timeout)
     print(f'All results loaded. Total: {page} pages.')
@@ -40,7 +41,7 @@ def parse_info(item_div, mode=1):
     if mode == 1:
         return {'seller_name': seller_divs.p.get_text(),
                 'seller_url': home+a[0]['href'],
-                'item_name': a[1].find_all('div', recursive=False)[1].p.get_text(),
+                'item_name': item_div.find('img')['title'],
                 'item_url': home+a[1]['href'],
                 'time_posted': seller_divs.div.p.get_text(),  # TODO: process into absolute datetime
                 'condition': item_p[1].get_text(),
@@ -62,45 +63,48 @@ if __name__ == "__main__":
     ps.add_argument('-o', '--output', type=str, help='CSV file to write out to')
     ps.add_argument('-t', '--test', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure, 
         using a snapshot of a bs4 object while overriding these flags with the respective values: -i shirakami fubuki -p 1''')
+    ps.add_argument('-s', '--serialize', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure,
+        the BS4 object is serialised for fast access, must not have -t''')
     args = ps.parse_args()
-    print("Author: Andrew Higgins")
-    print("https://github.com/speckly")
-    print("Creating webdriver")
     
     if args.item:
-        item = args.page
+        item = args.item
     else:
-        item = input('Up to how many pages to scrap? Each page is 23-25 listings: ')
+        item = input('-i Item name: ')
     if args.page:
         page_limit = args.page
     else: 
         while True:
-            inp = input('Number of pages (approx 50 per page): ')
+            inp = input('-p Number of pages (approx 50 per page): ')
             if inp.isdigit():
                 page_limit = int(inp)
                 break
             else:
                 print("Invalid integer")
     if args.output:
-        if not re.match(r'^[a-zA-Z0-9_\-]+\.csv$', args.output):
+        if re.match(r'^[a-zA-Z0-9_\-]+\.csv$', args.output):
             output_file = args.output
         else:
             print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
             exit()
     else:
         while True:
-            inp = input('Enter the name for the CSV file: ')
+            inp = input('-o Enter the name for the CSV file: ')
             if re.match(r'^[a-zA-Z0-9_\-]+\.csv$', inp):
                 csv_filename = inp
                 break
             else:
                 print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
     if args.test:
-        item = 'shirakami fubuki'
-        page_limit = 1
+        # item = 'shirakami fubuki'
+        # page_limit = 1
         if args.item or args.page:
             print('Entered test mode, overriding some user provided arguments with -i shirakami fubuki -p 1') 
 
+    print("Author: Andrew Higgins")
+    print("https://github.com/speckly")
+    print("Creating webdriver")
+    
     home = 'https://sg.carousell.com'
     subdirs = f'/search/{urllib.parse.quote(item)}'
     parameters = f'?addRecent=false&canChangeKeyword=false&includeSuggestions=false&sort_by=3'
@@ -112,9 +116,15 @@ if __name__ == "__main__":
     
     try:
         print(f'Retrieving search results on {item}...')
-        search_results_soup = request_page(home+subdirs+parameters)
-        # with open("soup.pkl", "rb") as f:
-        #     search_results_soup = pickle.load(f)
+        if not args.test:
+            search_results_soup = request_page(home+subdirs+parameters)
+            if args.serialize:
+                with open("./tests/soup.pkl", "w") as f:
+                    pickle.dump(search_results_soup)
+                print(f"Serialised: -i {item}")
+        else:
+            with open("./tests/soup.pkl", "rb") as f:
+                search_results_soup = pickle.load(f)
         # Strip down
         browse_listings_divs = search_results_soup.find(class_="asm-browse-listings")
         item_divs_class = browse_listings_divs.select_one('.asm-browse-listings > div > div > div > div > div')['class']
@@ -146,8 +156,8 @@ if __name__ == "__main__":
     print(f'Parse success using mode {parse_mode}! Sample item parsed:')
     pprint(items_list[0])
     df = pd.DataFrame(items_list)
-    df.to_csv(f'{item}.csv', index=False)
-    print(f'Results saved to {item}.csv')
+    df.to_csv(f'output/{output_file}', index=False)
+    print(f'Results saved to {output_file}')
     input('Press enter to exit ')
 
 '''
