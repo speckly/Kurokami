@@ -6,13 +6,25 @@ import threading
 from requests import get
 from json import loads
 import asyncio
-import time
 from typing import Union
 
 class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
         self.tree = discord.app_commands.CommandTree(self)
+
+    async def on_ready(self):
+        print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
+        loop = asyncio.get_running_loop() 
+        threading.Thread(target=self.separate_thread, args=[loop]).start()
+
+    def separate_thread(self, loop):
+        asyncio.run_coroutine_threadsafe(self.cb(60), loop)
+    
+    async def cb(self, delay: int):
+        while True:
+            await asyncio.sleep(delay)
+            await cat_fact_cb()
 
     async def setup_hook(self):
         MY_GUILD = discord.Object(id=1093515712900902912)
@@ -28,13 +40,7 @@ client = MyClient(intents=intents)
 def timestamp() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-@client.event
-async def on_ready():\
-    print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
-
 async def cat_fact_cb(interaction = None):
-    print("invoke")
-    
     try:
         catFact = loads(get("https://catfact.ninja/fact").content.decode("utf-8"))["fact"]
     except Exception as e:
@@ -42,7 +48,7 @@ async def cat_fact_cb(interaction = None):
     if interaction:
         await interaction.response.send_message(catFact)
     else:
-        CHANNEL = client.get_channel(1216427363345371246)
+        CHANNEL = client.get_channel(1093515713366478953)
         await CHANNEL.send(catFact)
 
 @client.tree.command(description='Manually invoke')
@@ -50,11 +56,5 @@ async def cat_fact_cb(interaction = None):
 async def cat_fact(interaction: discord.Interaction):
     await cat_fact_cb(interaction)
 
-async def cb(delay: int):
-    await asyncio.sleep(delay)
-    await cat_fact_cb()
-
 if __name__ == "__main__":
-    td = threading.Thread(target=cb, args=(10,))
-    td.start()
     client.run(os.getenv('TOKEN'))
