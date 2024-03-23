@@ -6,6 +6,8 @@ import threading
 from requests import get
 from json import loads
 import asyncio
+import time
+from typing import Union
 
 class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
@@ -30,27 +32,29 @@ def timestamp() -> str:
 async def on_ready():\
     print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
 
-async def cat_fact(CHANNEL: int or discord.Channel = ""):
+async def cat_fact_cb(interaction = None):
     print("invoke")
-    await asyncio.sleep(1)
+    
     try:
         catFact = loads(get("https://catfact.ninja/fact").content.decode("utf-8"))["fact"]
     except Exception as e:
         catFact = f"Meowerror: {e}"
-    if CHANNEL == "":
+    if interaction:
+        await interaction.response.send_message(catFact)
+    else:
         CHANNEL = client.get_channel(1216427363345371246)
-    await CHANNEL.send(catFact)
+        await CHANNEL.send(catFact)
 
 @client.tree.command(description='Manually invoke')
 @discord.app_commands.describe()
 async def cat_fact(interaction: discord.Interaction):
-    await cat_fact(interaction.channel)
+    await cat_fact_cb(interaction)
 
-async def run_blocking_task_in_thread():
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, cat_fact)
+async def cb(delay: int):
+    await asyncio.sleep(delay)
+    await cat_fact_cb()
 
 if __name__ == "__main__":
-    td = threading.Thread(target=asyncio.run, args=(run_blocking_task_in_thread(),))
+    td = threading.Thread(target=cb, args=(10,))
     td.start()
     client.run(os.getenv('TOKEN'))
