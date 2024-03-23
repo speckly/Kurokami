@@ -60,7 +60,7 @@ if __name__ == "__main__":
     ps = argparse.ArgumentParser()
     ps.add_argument('-i', '--item', type=str, help='Name of the item to scrape')
     ps.add_argument('-p', '--page', type=int, help='Number of pages (approx 50 per page)')
-    ps.add_argument('-o', '--output', type=str, help='CSV file to write out to')
+    ps.add_argument('-o', '--output', type=str, help='CSV file to write out to, defaults to timestamped')
     ps.add_argument('-t', '--test', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure, 
         using a snapshot of a bs4 object while overriding these flags with the respective values: -i shirakami fubuki -p 1''')
     ps.add_argument('-s', '--serialize', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure,
@@ -81,20 +81,15 @@ if __name__ == "__main__":
                 break
             else:
                 print("Invalid integer")
+    file_reg = r'^[a-zA-Z0-9_/\-]+\.csv$'
     if args.output:
-        if re.match(r'^[a-zA-Z0-9_\-]+\.csv$', args.output):
+        if re.match(file_reg, args.output):
             output_file = args.output
         else:
             print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
             exit()
     else:
-        while True:
-            inp = input('-o Enter the name for the CSV file: ')
-            if re.match(r'^[a-zA-Z0-9_\-]+\.csv$', inp):
-                csv_filename = inp
-                break
-            else:
-                print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
+        print("Using default csv file format")
     if args.test:
         # item = 'shirakami fubuki'
         # page_limit = 1
@@ -158,7 +153,6 @@ if __name__ == "__main__":
     df = pd.DataFrame(items_list)
     df.to_csv(f'output/{output_file}', index=False)
     print(f'Results saved to {output_file}')
-    input('Press enter to exit ')
 
 '''
 Two parse modes only differs in item divs 2nd a
