@@ -22,7 +22,6 @@ dotenv.load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 intents = discord.Intents.default()
 client = MyClient(intents=intents)
-CHANNEL = client.get_channel(1216427363345371246)
 
 def timestamp() -> str:
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -31,18 +30,21 @@ def timestamp() -> str:
 async def on_ready():\
     print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
 
-async def cat_fact():
+async def cat_fact(CHANNEL: int or discord.Channel = ""):
+    print("invoke")
     await asyncio.sleep(1)
     try:
         catFact = loads(get("https://catfact.ninja/fact").content.decode("utf-8"))["fact"]
     except Exception as e:
         catFact = f"Meowerror: {e}"
-    await CHANNEL.send(content=cat_fact)
+    if CHANNEL == "":
+        CHANNEL = client.get_channel(1216427363345371246)
+    await CHANNEL.send(catFact)
 
 @client.tree.command(description='Manually invoke')
 @discord.app_commands.describe()
-async def silly_embed(interaction: discord.Interaction):
-    await cat_fact()
+async def cat_fact(interaction: discord.Interaction):
+    await cat_fact(interaction.channel)
 
 async def run_blocking_task_in_thread():
     loop = asyncio.get_running_loop()
