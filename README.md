@@ -1,6 +1,6 @@
-# CScraper
+# Kurokami
 
-CScraper is a web scraper and live monitoring tool for the marketplace Carousell. 
+Kurokami is a web scraper and live monitoring tool for the marketplace Carousell. 
 > [!NOTE]
 > Support only for SG
 
