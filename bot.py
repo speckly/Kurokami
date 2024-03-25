@@ -20,6 +20,7 @@ class MyClient(discord.Client):
 
     async def on_ready(self):
         print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
+        print(client.get_user(494483880410349595))
         loop = asyncio.get_running_loop() 
         threading.Thread(target=self.separate_thread, args=[loop]).start()
 
@@ -28,10 +29,10 @@ class MyClient(discord.Client):
     
     async def cb(self, delay: int):
         while True:
-            await asyncio.sleep(delay)
-            s = time.time()
+            # s = time.time()
             await query_cb()
-            print(f"Time taken: {time.time() - s}, {len(new_results)} new results: {new_results}")
+            # print(f"Time taken: {time.time() - s}, {len(new_results)} new results: {new_results}")
+            await asyncio.sleep(delay)
 
     async def setup_hook(self):
         MY_GUILD = discord.Object(id=1093515712900902912)
@@ -75,6 +76,10 @@ async def query_cb(interaction = None):
     all_folders = [name for name in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, name))]
     folder_dates = sorted([datetime.datetime.strptime(folder, "%Y_%m_%d").date() for folder in all_folders])
     while True: # Get the latest folder # BUG: What if there is no latest folder?
+        if len(folder_dates) == 0:
+            print("No latest folder? Probably first time running script, skipping comparison")
+            folder = None
+            break
         folder = str(folder_dates.pop(-1)).replace("-", "_")
         csv_files = [file for file in os.listdir(f'./output/{folder}') if file.endswith('.csv')]
         if len(csv_files) != 0:
@@ -82,16 +87,16 @@ async def query_cb(interaction = None):
         elif folder != today:
             print(f"{folder} does not contain any CSV files, deleting")
             os.rmdir(f'./output/{folder}')
-    folder = str(folder).replace("-", "_") # overwrite the current folder with the latest date known, for getting the last csv file
-    sorted_files = sorted(csv_files)
-    if sorted_files:
-        last_file_path = os.path.join(f'./output/{folder}', sorted_files[-1])
-    #     print("Last file saved:", last_file_path)
-    # else:
-    #     print("Directory is probably empty")
+    if folder:
+        folder = str(folder).replace("-", "_") # overwrite the current folder with the latest date known, for getting the last csv file
+        sorted_files = sorted(csv_files)
+        if sorted_files:
+            last_file_path = os.path.join(f'./output/{folder}', sorted_files[-1])
 
-    new_results = kurokami.main({"i": filename, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
-    
+        new_results = kurokami.main({"i": filename, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
+    else:
+        new_results = kurokami.main({"i": filename, "p": 1, "o": new_filename, "t": False, "s": False})
+
     for result in new_results:
         seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result
         if len(price) == 1:
@@ -99,14 +104,14 @@ async def query_cb(interaction = None):
         else:
             price = f"{price[0]} ~~{price[1]}~~"
         try:
-            catFact = loads(get("https://catfact.ninja/fact").content.decode("utf-8"))["fact"]
+            catFact = loads(get("https://catfact.ninja/fact",timeout=10).content.decode("utf-8"))["fact"]
         except Exception as e:
             catFact = f"Meowerror: {e}"
-        
         emb=discord.Embed(title=item_name, url=item_url, 
         description=f"# {price}\nPosted: {time_posted}\nSeller: [{seller_name}]({seller_url})\nCondition: {condition}", 
-        color=0x00ff00, timestamp=datetime.datetime.now())
-        emb.set_author(name=interaction.user.name, icon_url=interaction.user.display_avatar)
+        color=0x00ff00) # timestamp=datetime.datetime.now()
+        # emb.set_author(name=client.get_user(494483880410349595).name, icon_url=client.get_user(494483880410349595).display_avatar)
+        emb.set_author(name="speckly")
         emb.set_footer(text=catFact)
         emb.set_image(url=item_img)
         if interaction:

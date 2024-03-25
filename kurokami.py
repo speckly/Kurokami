@@ -203,7 +203,9 @@ def main(options: dict = {}):
         print(f'Results saved to {output_file}')
     
     if compare_file:
+        
         prev_df = pd.read_csv(compare_file)
+        df_standardized = df.iloc[:len([prev_df])] # cases where there might be extra old results appended to new df, remove these
         new_rows = df[~df['item_name'].isin(prev_df['item_name'])]
         return new_rows.values.tolist() # TODO: use dict
 
