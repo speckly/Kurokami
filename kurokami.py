@@ -15,6 +15,7 @@ from selenium.common.exceptions import TimeoutException
 import pickle
 import traceback
 import argparse
+import os
 
 def request_page(url, page_limit):
     """ Returns BeautifulSoup4 Objects (soup)"""
@@ -28,7 +29,7 @@ def request_page(url, page_limit):
 
     driver.get(url)
     page = 1
-    
+
     while page < page_limit:
         try:
             next_page_btn = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, '//button[contains(text(), "Show more results")]')))  # wait max timeout sec for loading
@@ -39,7 +40,7 @@ def request_page(url, page_limit):
             break
     
     pg = driver.page_source
-    driver.quit()
+    # driver.quit()
     return BeautifulSoup(pg, "html.parser")
 
 
@@ -47,14 +48,16 @@ def parse_info(item_div, home, mode=1):
     a = item_div.find_all('a', recursive=False)
     seller_divs = a[0].find_all('div', recursive=False)[1]
     item_p = a[1].find_all('p', recursive=False)
+    img = item_div.find('img')
     if mode == 1:
         return {'seller_name': seller_divs.p.get_text(),
                 'seller_url': home+a[0]['href'],
-                'item_name': item_div.find('img')['title'],
+                'item_name': img['title'] if img else "Title not found as this is a video",
+                'item_img': img['src'] if img else None,
                 'item_url': home+a[1]['href'],
                 'time_posted': seller_divs.div.p.get_text(),  # TODO: process into absolute datetime
                 'condition': item_p[1].get_text(),
-                'price': re.findall(r"\$\d+", "".join([p.get_text().replace(',', '') for p in item_p]))
+                'price': re.findall(r"\$\d+\.?\d{,2}", a[1].get_text())
                 }  # 0 is discounted price, 1 is original price, if applicable
     else:
         return {'seller_name': seller_divs.p.get_text(),
@@ -82,10 +85,10 @@ def main(options: dict = {}):
         
         if args.test:
             test = True
-            item = 'shirakami fubuki'
+            item = 'test'
             page_limit = 1
             if args.item or args.page:
-                print('Entered test mode, overriding some user provided arguments with -i shirakami fubuki -p 1') 
+                print('Entered test mode, overriding some user provided arguments') 
         else:
             test = False
             if args.item:
@@ -102,7 +105,7 @@ def main(options: dict = {}):
                         break
                     else:
                         print("Invalid integer")
-        file_reg = r'^[a-zA-Z0-9_/\-]+\.csv$'
+        file_reg = r'^.?[a-zA-Z0-9_\\/\-]+\.csv$'
         output_file = args.output
         if output_file:
             if not re.match(file_reg, output_file):
@@ -118,7 +121,7 @@ def main(options: dict = {}):
         serialize = args.serialize
         compare_file = args.compare
         if compare_file:
-            if not re.match(file_reg, args.output):
+            if not re.match(file_reg, args.compare):
                 print(f"Invalid CSV file name {compare_file}. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
                 exit()
             elif not os.path.exists(compare_file):
@@ -155,16 +158,17 @@ def main(options: dict = {}):
                 print("Creating webdriver")
             search_results_soup = request_page(home+subdirs+parameters, page_limit=page_limit)
             if not server_side:
-                print(f'All results loaded. Total: {page} pages.')
+                print(f'All results loaded. Total: {page_limit} pages.')
             if serialize:
-                with open("./tests/soup.pkl", "w") as f:
-                    pickle.dump(search_results_soup)
+                with open("./tests/soup.pkl", "wb") as f:
+                    pickle.dump(search_results_soup, f)
                 print(f"Serialized: -i {item}")
         else:
             with open("./tests/soup.pkl", "rb") as f:
                 search_results_soup = pickle.load(f)
         # Strip down
         browse_listings_divs = search_results_soup.find(class_="asm-browse-listings")
+        # print(browse_listings_divs)
         item_divs_class = browse_listings_divs.select_one('.asm-browse-listings > div > div > div > div > div')['class']
         if not server_side:
             print(f'Detected item_divs class: {item_divs_class}')
@@ -197,9 +201,17 @@ def main(options: dict = {}):
         print(f'Parse success using mode {parse_mode}! Sample item parsed:')
         pprint(items_list[0])
         print(f'Results saved to {output_file}')
+    
+    if compare_file:
+        prev_df = pd.read_csv(compare_file)
+        new_rows = df[~df['item_name'].isin(prev_df['item_name'])]
+        return new_rows.values.tolist() # TODO: use dict
 
 if __name__ == "__main__":
-    main()
+    compare_results = main()
+    if compare_results:
+        print(f"The difference between the previous and this query is {compare_results}")
+        print(f"There are {len(compare_results)} new listings")
 
 '''
 Two parse modes only differs in item divs 2nd a
