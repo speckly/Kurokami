@@ -16,11 +16,18 @@ import pickle
 import traceback
 import argparse
 
-def request_page(url):
+def request_page(url, page_limit):
     """ Returns BeautifulSoup4 Objects (soup)"""
+    print("Creating webdriver")
+    opts = Options()
+    opts.add_experimental_option('prefs', {'intl.accept_languages': 'en,en_US'})
+    driver = webdriver.Chrome(options=opts)
+    driver.minimize_window()
+    print(f'Chrome Web Driver loaded. Version: {driver.capabilities["browserVersion"]}\n')  # use "version" on Linux
+
     driver.get(url)
     page = 1
-    timeout = 5
+    
     while page < page_limit:
         try:
             next_page_btn = WebDriverWait(driver, timeout).until(EC.presence_of_element_located((By.XPATH, '//button[contains(text(), "Show more results")]')))  # wait max timeout sec for loading
@@ -29,12 +36,15 @@ def request_page(url):
         except TimeoutException as e:
             print("Button not found, reached end of page or load more button not found.")
             break
-    time.sleep(timeout)
+    
+    pg = driver.page_source
+    driver.quit()
+
     print(f'All results loaded. Total: {page} pages.')
-    return BeautifulSoup(driver.page_source, "html.parser")
+    return BeautifulSoup(pg, "html.parser")
 
 
-def parse_info(item_div, mode=1):
+def parse_info(item_div, home, mode=1):
     a = item_div.find_all('a', recursive=False)
     seller_divs = a[0].find_all('div', recursive=False)[1]
     item_p = a[1].find_all('p', recursive=False)
@@ -56,67 +66,80 @@ def parse_info(item_div, mode=1):
                 'condition': item_p[3].get_text(),
                 'price': re.findall(r"\d+", item_p[1].get_text().replace(',', ''))[0]}  # 0 is discounted price, 1 is original price, if applicable
 
-if __name__ == "__main__":
-    ps = argparse.ArgumentParser()
-    ps.add_argument('-i', '--item', type=str, help='Name of the item to scrape')
-    ps.add_argument('-p', '--page', type=int, help='Number of pages (approx 50 per page)')
-    ps.add_argument('-o', '--output', type=str, help='CSV file to write out to, defaults to timestamped')
-    ps.add_argument('-t', '--test', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure, 
-        using a snapshot of a bs4 object while overriding these flags with the respective values: -i shirakami fubuki -p 1''')
-    ps.add_argument('-s', '--serialize', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure,
-        the BS4 object is serialised for fast access, must not have -t''')
-    args = ps.parse_args()
-    
-    if args.item:
-        item = args.item
-    else:
-        item = input('-i Item name: ')
-    if args.page:
-        page_limit = args.page
-    else: 
-        while True:
-            inp = input('-p Number of pages (approx 50 per page): ')
-            if inp.isdigit():
-                page_limit = int(inp)
-                break
-            else:
-                print("Invalid integer")
-    file_reg = r'^[a-zA-Z0-9_/\-]+\.csv$'
-    if args.output:
-        if re.match(file_reg, args.output):
-            output_file = args.output
+def main(options: dict = {}):
+    """options keys: i (item), p (page), o (output), t (test), s (serialize)"""
+    if options == {}:
+        ps = argparse.ArgumentParser()
+        ps.add_argument('-i', '--item', type=str, help='Name of the item to scrape')
+        ps.add_argument('-p', '--page', type=int, help='Number of pages (approx 50 per page)')
+        ps.add_argument('-o', '--output', type=str, help='CSV file to write out to, defaults to timestamped')
+        ps.add_argument('-t', '--test', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure, 
+            using a snapshot of a bs4 object while overriding these flags with the respective values: -i shirakami fubuki -p 1''')
+        ps.add_argument('-s', '--serialize', action='store_true', help=r'''For debugging of parsers which could break often due to the changing structure,
+            the BS4 object is serialised for fast access, must not have -t''')
+        args = ps.parse_args()
+        
+        if args.test:
+            test = True
+            item = 'shirakami fubuki'
+            page_limit = 1
+            if args.item or args.page:
+                print('Entered test mode, overriding some user provided arguments with -i shirakami fubuki -p 1') 
         else:
-            print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
-            exit()
-    else:
-        print("Using default csv file format")
-    if args.test:
-        # item = 'shirakami fubuki'
-        # page_limit = 1
-        if args.item or args.page:
-            print('Entered test mode, overriding some user provided arguments with -i shirakami fubuki -p 1') 
-
+            test = False
+            if args.item:
+                item = args.item
+            else:
+                item = input('-i Item name: ')
+            if args.page:
+                page_limit = args.page
+            else: 
+                while True:
+                    inp = input('-p Number of pages (approx 50 per page): ')
+                    if inp.isdigit():
+                        page_limit = int(inp)
+                        break
+                    else:
+                        print("Invalid integer")
+        file_reg = r'^[a-zA-Z0-9_/\-]+\.csv$'
+        if args.output:
+            if re.match(file_reg, args.output):
+                output_file = args.output
+            else:
+                print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
+                exit()
+        else:
+            print("Using default csv file format")
+            output_file = item + ".csv"
+        
+        serialize = args.serialize
+    else: # Praying that this does not result in a SSRF, used in bot.py with no user inputs yet. Validate user inputs
+        item = options.get("i")
+        output_file = options.get("o")
+        page_limit = options.get("p")
+        if options.get("t"):
+            test = True
+            item = 'shirakami fubuki'
+            page_limit = 1
+        else:
+            test = False
+        serialize = options.get("s")
+        
     print("Author: Andrew Higgins")
     print("https://github.com/speckly")
-    print("Creating webdriver")
     
     home = 'https://sg.carousell.com'
     subdirs = f'/search/{urllib.parse.quote(item)}'
     parameters = f'?addRecent=false&canChangeKeyword=false&includeSuggestions=false&sort_by=3'
-    opts = Options()
-    opts.add_experimental_option('prefs', {'intl.accept_languages': 'en,en_US'})
-    driver = webdriver.Chrome(options=opts)
-    driver.minimize_window()
-    print(f'Chrome Web Driver loaded. Version: {driver.capabilities["browserVersion"]}\n')  # use "version" on Linux
     
     try:
         print(f'Retrieving search results on {item}...')
-        if not args.test:
-            search_results_soup = request_page(home+subdirs+parameters)
-            if args.serialize:
+        if not test:
+            search_results_soup = request_page(home+subdirs+parameters, page_limit=page_limit)
+            if serialize:
                 with open("./tests/soup.pkl", "w") as f:
                     pickle.dump(search_results_soup)
-                print(f"Serialised: -i {item}")
+                print(f"Serialized: -i {item}")
         else:
             with open("./tests/soup.pkl", "rb") as f:
                 search_results_soup = pickle.load(f)
@@ -136,7 +159,7 @@ if __name__ == "__main__":
         try:
             items_list = []
             for item_div in item_divs:
-                items_list.append(parse_info(item_div, parse_mode)) 
+                items_list.append(parse_info(item_div, home, parse_mode)) 
             break
         except IndexError as e:
             print(traceback.format_exc())
@@ -147,12 +170,14 @@ if __name__ == "__main__":
     else:
         raise RuntimeError('Parsing failed as it still faces IndexError after 5 tries.')
 
-    driver.quit()
     print(f'Parse success using mode {parse_mode}! Sample item parsed:')
     pprint(items_list[0])
     df = pd.DataFrame(items_list)
-    df.to_csv(f'output/{output_file}', index=False)
+    df.to_csv({output_file}, index=False)
     print(f'Results saved to {output_file}')
+
+if __name__ == "__main__":
+    main()
 
 '''
 Two parse modes only differs in item divs 2nd a

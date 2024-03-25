@@ -2,3 +2,4 @@
 /tests/**.csv
 /output
 .env
+**/__pycache__
