@@ -18,20 +18,25 @@ class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
         self.tree = discord.app_commands.CommandTree(self)
-        self.threads = []
+        self.tasks = {}
 
     async def on_ready(self):
         print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
-        loop = asyncio.get_running_loop() 
-        threading.Thread(target=self.separate_thread, args=[loop, "RTX 3070", 120]).start()
 
-    def separate_thread(self, loop, item_name, query_delay):
-        asyncio.run_coroutine_threadsafe(self.cb(query_delay, item_name), loop)
+    def separate_thread(self, loop, query_delay, item_name, channel_id):
+        # if asyncio.get_event_loop().is_running():
+        #     # If a loop is already running, use it
+        #     loop = asyncio.get_event_loop()
+        # else:
+        #     # If no loop is running, create a new one
+        #     loop = asyncio.new_event_loop()
+        #     asyncio.set_event_loop(loop)
+        asyncio.run_coroutine_threadsafe(self.cb(query_delay, item_name, channel_id), loop)
     
-    async def cb(self, delay: int, item_name: str):
+    async def cb(self, delay: int, item_name: str, channel_id: int):
         while True:
             s = time.time()
-            await query_cb(item_name)
+            await query_cb(item_name, channel_id)
             print(f"Time taken: {time.time() - s}")
             await asyncio.sleep(delay)
 
@@ -60,7 +65,7 @@ async def cat_fact_cb(interaction = None):
         CHANNEL = client.get_channel(1093515713366478953)
         await CHANNEL.send(catFact)
 
-async def query_cb(item_name, interaction = None):
+async def query_cb(item_name, channel_id, interaction = None):
     folder = today = datetime.datetime.now().strftime("%Y_%m_%d")
     timestamp = datetime.datetime.now().strftime("%H_%M_%S")
     new_filename = f'./output/{folder}/{timestamp}_{item_name}.csv'
@@ -92,7 +97,8 @@ async def query_cb(item_name, interaction = None):
         sorted_files = sorted(csv_files)
         if sorted_files:
             last_file_path = os.path.join(f'./output/{folder}', sorted_files[-1])
-
+        
+        print(f"last file: {last_file_path}")
         new_results = kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
     else:
         new_results = kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False})
@@ -117,7 +123,7 @@ async def query_cb(item_name, interaction = None):
         if interaction:
             await interaction.followup.send_message(catFact)
         else:
-            CHANNEL = client.get_channel(1221866944366510150)
+            CHANNEL = client.get_channel(channel_id)
             await CHANNEL.send(embed=emb)
 
 @client.tree.command(description='Manually invoke')
@@ -125,14 +131,40 @@ async def query_cb(item_name, interaction = None):
 async def cat_fact(interaction: discord.Interaction):
     await cat_fact_cb(interaction)
 
-@client.tree.command(description='Manually invoke query')
-@discord.app_commands.describe()
-async def query(interaction: discord.Interaction):
+@client.tree.command(description='Create thread')
+@discord.app_commands.describe(item="Name of the item to query", delay="Delay in seconds")
+async def create_thread(interaction: discord.Interaction, item: str, delay: int):
     if interaction.user.id != 494483880410349595:
         await interaction.response.send_message("Not authorised to use this")
         print(f"Unauthorised access: {interaction.user.id}")
     else:
-        await query_cb(interaction)
+        cid = interaction.channel_id
+        loop = asyncio.get_running_loop() 
+        task = threading.Thread(target=client.separate_thread, args=[loop, delay, item, interaction.channel_id])
+        # task = loop.create_task(client.cb(delay, item, interaction.channel_id)) # This uses one main, require full async
+        await interaction.response.send_message(f"Created task with ```key: {item}``` in this channel")
+        task.start()
 
+        last_task = client.tasks.get(item)
+        if last_task:
+            await interaction.followup.send(f"Warning: this item ```{item}``` is being queried in channel {last_task['channel']}. This existing query will be cancelled")
+            last_task['task'].cancel()
+        for item in client.tasks:
+            if client.tasks[item]["channel"] == cid:
+                await interaction.followup.send(f"Warning: another item ```{item}``` is being queried in this channel. Consider terminating either query to avoid conflict")
+        client.tasks[item] = {"task": task, "channel": cid}
+
+@client.tree.command(description='View threads')
+@discord.app_commands.describe()
+async def view_threads(interaction: discord.Interaction):
+    if interaction.user.id != 494483880410349595:
+        await interaction.response.send_message("Not authorised to use this")
+        print(f"Unauthorised access: {interaction.user.id}")
+    elif client.tasks != {}:
+        out_str = "\n".join([f"{item} in channel_id {client.tasks[item]['channel']}" for item in client.tasks])
+        await interaction.response.send_message(out_str)
+    else:
+        await interaction.response.send_message("No tasks are running")
+        
 if __name__ == "__main__":
     client.run(os.getenv('TOKEN'))
