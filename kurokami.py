@@ -16,8 +16,9 @@ import pickle
 import traceback
 import argparse
 import os
+import asyncio
 
-def request_page(url, page_limit):
+async def request_page(url, page_limit):
     """ Returns BeautifulSoup4 Objects (soup)"""
     
     opts = Options()
@@ -68,7 +69,7 @@ def parse_info(item_div, home, mode=1):
                 'condition': item_p[3].get_text(),
                 'price': re.findall(r"\d+", item_p[1].get_text().replace(',', ''))[0]}  # 0 is discounted price, 1 is original price, if applicable
 
-def main(options: dict = {}):
+async def main(options: dict = {}):
     """options keys: i (item), p (page), o (output), t (test), s (serialize), c (compare)"""
     if options == {}:
         server_side = False
@@ -156,7 +157,7 @@ def main(options: dict = {}):
         if not test:
             if not server_side:
                 print("Creating webdriver")
-            search_results_soup = request_page(home+subdirs+parameters, page_limit=page_limit)
+            search_results_soup = await request_page(home+subdirs+parameters, page_limit=page_limit)
             if not server_side:
                 print(f'All results loaded. Total: {page_limit} pages.')
             if serialize:
@@ -210,11 +211,10 @@ def main(options: dict = {}):
         return df.values.tolist()
 
 if __name__ == "__main__":
-    compare_results = main()
+    compare_results = asyncio.run(main())
     if compare_results:
         print(f"The difference between the previous and this query is {compare_results}")
         print(f"There are {len(compare_results)} new listings")
-
 '''
 Two parse modes only differs in item divs 2nd a
 Structure of Carousell HTML FORMAT 1 (parse_mode 1):
