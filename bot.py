@@ -36,10 +36,10 @@ class MyClient(discord.Client):
     async def on_ready(self):
         print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
     
-    async def cb(self, delay: int, item_name: str, channel_id: int):
+    async def cb(self, delay: int, item_name: str, interaction: discord.Interaction):
         while True:
             s = time.time()
-            await query_cb(item_name, channel_id)
+            await query_cb(item_name, interaction)
             print(f"{threading.current_thread().name}, time taken: {time.time() - s}")
             await asyncio.sleep(delay)
 
@@ -68,7 +68,7 @@ async def cat_fact_cb(interaction = None):
         CHANNEL = client.get_channel(1093515713366478953)
         await CHANNEL.send(catFact)
 
-async def query_cb(item_name, channel_id, interaction = None):
+async def query_cb(item_name, interaction):
     folder = today = datetime.datetime.now().strftime("%Y_%m_%d")
     timestamp = datetime.datetime.now().strftime("%H_%M_%S")
     new_filename = f'./output/{folder}/{timestamp}_{item_name}.csv'
@@ -101,7 +101,7 @@ async def query_cb(item_name, channel_id, interaction = None):
         if sorted_files:
             last_file_path = os.path.join(f'./output/{folder}', sorted_files[-1])
         
-        print(f"last file: {last_file_path}")
+        # print(f"last file: {last_file_path}")
         new_results = kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
     else:
         new_results = kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False})
@@ -125,9 +125,9 @@ async def query_cb(item_name, channel_id, interaction = None):
         emb.set_image(url=item_img)
         if interaction:
             await interaction.followup.send_message(catFact)
-        else:
-            CHANNEL = client.get_channel(channel_id)
-            await CHANNEL.send(embed=emb)
+        # else:
+        #     CHANNEL = client.get_channel(channel_id)
+        #     await CHANNEL.send(embed=emb)
 
 @client.tree.command(description='Manually invoke')
 @discord.app_commands.describe()
@@ -142,9 +142,8 @@ async def create_thread(interaction: discord.Interaction, item: str, delay: int)
         print(f"Unauthorised access: {interaction.user.id}")
     else:
         await interaction.response.send_message(f"Creating thread: {item}")
-        
         cid = interaction.channel_id
-        task = QueryThread(target=asyncio.run, args=[client.cb(delay, item, interaction.channel_id)], name=item, cid=cid)
+        task = QueryThread(target=asyncio.run, args=[client.cb(delay, item, interaction)], name=item, cid=cid)
         
         task.start()
         last_task = client.tasks.get(item)
@@ -168,6 +167,30 @@ async def view_threads(interaction: discord.Interaction):
         await interaction.response.send_message(out_str)
     else:
         await interaction.response.send_message("No tasks are running")
+
+@client.tree.command(description='Stop thread')
+@discord.app_commands.describe(name='Name of the thread to stop, must be existing, get list of threads with /view_threads')
+async def delete_thread(interaction: discord.Interaction, name: str=''):
+    if interaction.user.id != 494483880410349595:
+        await interaction.response.send_message("Not authorised to use this")
+        print(f"Unauthorised access: {interaction.user.id}")
+    elif name == '':
+        await interaction.response.send_message("Missing item name, stopping all current threads in this channel instead")
+        cid = interaction.channel_id
+        for stored_item in client.tasks:
+            if client.tasks[stored_item].channel == cid:
+                client.tasks[stored_item].stop()
+                del client.tasks[stored_item]
+                await interaction.followup.send(f"Stopped thread {stored_item} located in current channel")
+        
+    else:
+        task = client.tasks.get(name)
+        if task:
+            task.stop()
+            await interaction.response.send_message(f"Thread {name} stopped successfully")
+            del client.tasks[name]
+        else:
+            await interaction.response.send_message(f"Thread {name} does not exist. View list of threads with /view_threads")
         
 if __name__ == "__main__":
     client.run(os.getenv('TOKEN'))
