@@ -22,10 +22,10 @@ def request_page(url, page_limit):
     
     opts = Options()
     opts.add_argument("--log-level=3")
+    # opts.add_argument("--headless") # Requires human verification
     opts.add_experimental_option('prefs', {'intl.accept_languages': 'en,en_US'})
     driver = webdriver.Chrome(options=opts)
     driver.minimize_window()
-    # print(f'Chrome Web Driver loaded. Version: {driver.capabilities["browserVersion"]}\n')  # use "version" on Linux
 
     driver.get(url)
     page = 1
@@ -40,7 +40,7 @@ def request_page(url, page_limit):
             break
     
     pg = driver.page_source
-    # driver.quit()
+    driver.quit()
     return BeautifulSoup(pg, "html.parser")
 
 
@@ -57,7 +57,7 @@ def parse_info(item_div, home, mode=1):
                 'item_url': home+a[1]['href'],
                 'time_posted': seller_divs.div.p.get_text(),  # TODO: process into absolute datetime
                 'condition': item_p[1].get_text(),
-                'price': re.findall(r"\$\d+\.?\d{,2}", a[1].get_text())
+                'price': re.findall(r"\$\d{0,3},?\d+\.?\d{,2}", a[1].get_text())
                 }  # 0 is discounted price, 1 is original price, if applicable
     else:
         return {'seller_name': seller_divs.p.get_text(),
@@ -168,7 +168,6 @@ def main(options: dict = {}):
                 search_results_soup = pickle.load(f)
         # Strip down
         browse_listings_divs = search_results_soup.find(class_="asm-browse-listings")
-        # print(browse_listings_divs)
         item_divs_class = browse_listings_divs.select_one('.asm-browse-listings > div > div > div > div > div')['class']
         if not server_side:
             print(f'Detected item_divs class: {item_divs_class}')
@@ -203,11 +202,12 @@ def main(options: dict = {}):
         print(f'Results saved to {output_file}')
     
     if compare_file:
-        
         prev_df = pd.read_csv(compare_file)
         df_standardized = df.iloc[:len([prev_df])] # cases where there might be extra old results appended to new df, remove these
-        new_rows = df[~df['item_name'].isin(prev_df['item_name'])]
+        new_rows = df_standardized[~df_standardized['item_name'].isin(prev_df['item_name'])]
         return new_rows.values.tolist() # TODO: use dict
+    else:
+        return df.values.tolist()
 
 if __name__ == "__main__":
     compare_results = main()

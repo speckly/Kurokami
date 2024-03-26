@@ -1,3 +1,5 @@
+# BUG: Suppressed error while changing names
+
 import discord
 import datetime
 import dotenv
@@ -7,31 +9,30 @@ from requests import get
 from json import loads
 import asyncio
 from typing import Union
+import time
 import sys
 sys.path.append('..')
 import kurokami
-
-QUERY_DELAY = 60
 
 class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
         self.tree = discord.app_commands.CommandTree(self)
+        self.threads = []
 
     async def on_ready(self):
         print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
-        print(client.get_user(494483880410349595))
         loop = asyncio.get_running_loop() 
-        threading.Thread(target=self.separate_thread, args=[loop]).start()
+        threading.Thread(target=self.separate_thread, args=[loop, "RTX 3070", 120]).start()
 
-    def separate_thread(self, loop):
-        asyncio.run_coroutine_threadsafe(self.cb(QUERY_DELAY), loop)
+    def separate_thread(self, loop, item_name, query_delay):
+        asyncio.run_coroutine_threadsafe(self.cb(query_delay, item_name), loop)
     
-    async def cb(self, delay: int):
+    async def cb(self, delay: int, item_name: str):
         while True:
-            # s = time.time()
-            await query_cb()
-            # print(f"Time taken: {time.time() - s}, {len(new_results)} new results: {new_results}")
+            s = time.time()
+            await query_cb(item_name)
+            print(f"Time taken: {time.time() - s}")
             await asyncio.sleep(delay)
 
     async def setup_hook(self):
@@ -59,43 +60,42 @@ async def cat_fact_cb(interaction = None):
         CHANNEL = client.get_channel(1093515713366478953)
         await CHANNEL.send(catFact)
 
-async def query_cb(interaction = None):
-    filename = "pokemon"
-
+async def query_cb(item_name, interaction = None):
     folder = today = datetime.datetime.now().strftime("%Y_%m_%d")
     timestamp = datetime.datetime.now().strftime("%H_%M_%S")
-    new_filename = f'./output/{folder}/{timestamp}_{filename}.csv'
+    new_filename = f'./output/{folder}/{timestamp}_{item_name}.csv'
     csv_files = []
     if not os.path.exists(f'./output/{folder}'):
         if not os.path.exists('./output'):
             os.makedirs('./output')
         else: # Possibly a new date
             os.makedirs(f'./output/{folder}') # create for today, after making a snapshot of before
-            
     output_dir = './output/'
     all_folders = [name for name in os.listdir(output_dir) if os.path.isdir(os.path.join(output_dir, name))]
     folder_dates = sorted([datetime.datetime.strptime(folder, "%Y_%m_%d").date() for folder in all_folders])
-    while True: # Get the latest folder # BUG: What if there is no latest folder?
+ 
+    while True: # Get the latest folder
         if len(folder_dates) == 0:
-            print("No latest folder? Probably first time running script, skipping comparison")
+            print("No latest file found. Probably is the first time running this script, skipping comparison")
             folder = None
             break
-        folder = str(folder_dates.pop(-1)).replace("-", "_")
-        csv_files = [file for file in os.listdir(f'./output/{folder}') if file.endswith('.csv')]
-        if len(csv_files) != 0:
-            break
-        elif folder != today:
-            print(f"{folder} does not contain any CSV files, deleting")
-            os.rmdir(f'./output/{folder}')
+        else:
+            folder = str(folder_dates.pop(-1)).replace("-", "_")
+            csv_files = [file for file in os.listdir(f'./output/{folder}') if file.endswith('.csv')]
+            if len(csv_files) != 0:
+                break
+            elif folder != today:
+                print(f"{folder} does not contain any CSV files, deleting")
+                os.rmdir(f'./output/{folder}')
     if folder:
         folder = str(folder).replace("-", "_") # overwrite the current folder with the latest date known, for getting the last csv file
         sorted_files = sorted(csv_files)
         if sorted_files:
             last_file_path = os.path.join(f'./output/{folder}', sorted_files[-1])
 
-        new_results = kurokami.main({"i": filename, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
+        new_results = kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
     else:
-        new_results = kurokami.main({"i": filename, "p": 1, "o": new_filename, "t": False, "s": False})
+        new_results = kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False})
 
     for result in new_results:
         seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result
