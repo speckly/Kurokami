@@ -14,6 +14,19 @@ import sys
 sys.path.append('..')
 import kurokami
 
+class QueryThread(threading.Thread):
+    def __init__(self, target, args, name, cid):
+        super().__init__(target=target, args=args)
+        self.name = name
+        self.channel = cid
+        self.event = threading.Event()
+
+    def stop(self):
+        print(f"Stopping thread {self.name}.")
+        self.event.set()
+        self.join()
+        print(f"Thread {self.name} stopped successfully.")
+
 class MyClient(discord.Client):
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
@@ -22,22 +35,12 @@ class MyClient(discord.Client):
 
     async def on_ready(self):
         print(f'{timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
-
-    def separate_thread(self, loop, query_delay, item_name, channel_id):
-        # if asyncio.get_event_loop().is_running():
-        #     # If a loop is already running, use it
-        #     loop = asyncio.get_event_loop()
-        # else:
-        #     # If no loop is running, create a new one
-        #     loop = asyncio.new_event_loop()
-        #     asyncio.set_event_loop(loop)
-        asyncio.run_coroutine_threadsafe(self.cb(query_delay, item_name, channel_id), loop)
     
     async def cb(self, delay: int, item_name: str, channel_id: int):
         while True:
             s = time.time()
             await query_cb(item_name, channel_id)
-            print(f"Time taken: {time.time() - s}")
+            print(f"{threading.current_thread().name}, time taken: {time.time() - s}")
             await asyncio.sleep(delay)
 
     async def setup_hook(self):
@@ -86,7 +89,7 @@ async def query_cb(item_name, channel_id, interaction = None):
             break
         else:
             folder = str(folder_dates.pop(-1)).replace("-", "_")
-            csv_files = [file for file in os.listdir(f'./output/{folder}') if file.endswith('.csv')]
+            csv_files = [file for file in os.listdir(f'./output/{folder}') if file.endswith(f'{item_name}.csv')]
             if len(csv_files) != 0:
                 break
             elif folder != today:
@@ -138,21 +141,21 @@ async def create_thread(interaction: discord.Interaction, item: str, delay: int)
         await interaction.response.send_message("Not authorised to use this")
         print(f"Unauthorised access: {interaction.user.id}")
     else:
+        await interaction.response.send_message(f"Creating thread: {item}")
+        
         cid = interaction.channel_id
-        loop = asyncio.get_running_loop() 
-        task = threading.Thread(target=client.separate_thread, args=[loop, delay, item, interaction.channel_id])
-        # task = loop.create_task(client.cb(delay, item, interaction.channel_id)) # This uses one main, require full async
-        await interaction.response.send_message(f"Created task with ```key: {item}``` in this channel")
+        task = QueryThread(target=asyncio.run, args=[client.cb(delay, item, interaction.channel_id)], name=item, cid=cid)
+        
         task.start()
-
         last_task = client.tasks.get(item)
         if last_task:
-            await interaction.followup.send(f"Warning: this item ```{item}``` is being queried in channel {last_task['channel']}. This existing query will be cancelled")
-            last_task['task'].cancel()
-        for item in client.tasks:
-            if client.tasks[item]["channel"] == cid:
-                await interaction.followup.send(f"Warning: another item ```{item}``` is being queried in this channel. Consider terminating either query to avoid conflict")
-        client.tasks[item] = {"task": task, "channel": cid}
+            await interaction.followup.send(f"Warning: this thread ```{item}``` exists in channel {last_task.channel}. This existing query will be cancelled")
+            last_task.stop()
+        for stored_item in client.tasks:
+            if client.tasks[stored_item].channel == cid:
+                await interaction.followup.send(f"Warning: another thread ```{stored_item}``` uses this channel. Consider terminating either to avoid conflict")
+        client.tasks[item] = task
+        await interaction.followup.send(f"Created thread with ```item key name: {item}``` in this channel")
 
 @client.tree.command(description='View threads')
 @discord.app_commands.describe()
@@ -161,7 +164,7 @@ async def view_threads(interaction: discord.Interaction):
         await interaction.response.send_message("Not authorised to use this")
         print(f"Unauthorised access: {interaction.user.id}")
     elif client.tasks != {}:
-        out_str = "\n".join([f"{item} in channel_id {client.tasks[item]['channel']}" for item in client.tasks])
+        out_str = "\n".join([f"{item} in channel_id {client.tasks[item].channel}" for item in client.tasks])
         await interaction.response.send_message(out_str)
     else:
         await interaction.response.send_message("No tasks are running")
