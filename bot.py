@@ -135,7 +135,8 @@ async def create_thread(interaction: discord.Interaction, item: str, delay: int)
             await interaction.followup.send(f"Warning: this thread ```{item}``` exists in channel {last_task.channel}. This existing query will be cancelled")
             last_task.cb.cancel()
         for stored_item in client.tasks:
-            if client.tasks[stored_item].channel == cid:
+            item_obj = client.tasks[stored_item]
+            if item_obj and item_obj.channel == cid:
                 await interaction.followup.send(f"Warning: another thread ```{stored_item}``` uses this channel. Consider terminating either to avoid conflict")
         client.tasks[item] = thread
         await interaction.followup.send(content=f"{item} thread created successfully")
