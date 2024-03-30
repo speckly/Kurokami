@@ -43,10 +43,12 @@ class Query():
     
         while True: # Get the latest folder
             if len(folder_dates) == 0:
+                pages = 20
                 print("No latest file found. Probably is the first time running this script, skipping comparison")
                 folder = None
                 break
             else:
+                pages = 1
                 folder = str(folder_dates.pop(-1)).replace("-", "_")
                 csv_files = [file for file in os.listdir(f'./output/{folder}') if file.endswith(f'{item_name}.csv')]
                 if len(csv_files) != 0:
@@ -61,9 +63,9 @@ class Query():
             if sorted_files:
                 last_file_path = os.path.join(f'./output/{folder}', sorted_files[-1])
             
-            new_results = await kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False, "c": last_file_path})
+            new_results = await kurokami.main({"i": item_name, "p": pages, "o": new_filename, "t": False, "s": False, "c": last_file_path})
         else:
-            new_results = await kurokami.main({"i": item_name, "p": 1, "o": new_filename, "t": False, "s": False})
+            new_results = await kurokami.main({"i": item_name, "p": pages, "o": new_filename, "t": False, "s": False})
 
         for result in new_results:
             seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result

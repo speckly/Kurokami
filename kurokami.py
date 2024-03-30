@@ -30,6 +30,7 @@ async def request_page(url, page_limit):
 
     driver.get(url)
     page = 1
+    timeout = 10
 
     while page < page_limit:
         try:
