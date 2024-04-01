@@ -15,12 +15,20 @@ import kurokami
 from discord.ext import tasks, commands
 
 class Query():
-    def __init__(self, name, cid, delay: float):
+    def __init__(self, name: str, cid: int, delay: float, mn: float, mx: float):
         self.name = name
         self.channel = cid
         self.delay = delay
         self.cb = tasks.loop(seconds=delay)(self._cb_impl)
+        self.mn = mn # Min
+        self.mx = mx # Max
 
+    def __repr__(self):
+        return f"<Query name:{self.name} channel:{self.channel} delay:{self.delay} min:{self.mn} max:{self.mx}>"
+
+    def __str__(self):
+        return f"Name: {self.name}, Channel: {self.channel}, Delay: {self.delay}, Min: {self.mn}, Max: {self.mx}"
+        
     async def _cb_impl(self):
         s = time.time()
         await self.query_cb()
@@ -69,20 +77,22 @@ class Query():
 
         for result in new_results:
             seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result
-            if len(price) == 1:
-                price = price[0]
-            else:
-                price = f"{price[0]} ~~{price[1]}~~"
-            cat_fact = await fetch_cat_fact()
-            emb=discord.Embed(title=item_name, url=item_url, 
-            description=f"# {price}\nPosted: {time_posted}\nSeller: [{seller_name}]({seller_url})\nCondition: {condition}", 
-            color=0x00ff00) # timestamp=datetime.datetime.now()
-            # emb.set_author(name=client.get_user(494483880410349595).name, icon_url=client.get_user(494483880410349595).display_avatar)
-            emb.set_author(name="speckly")
-            emb.set_footer(text=cat_fact)
-            emb.set_image(url=item_img)
-            CHANNEL = client.get_channel(self.channel)
-            await CHANNEL.send(embed=emb)
+            
+            if price > self.mn and price < self.mx:
+                if len(price) == 1: # Trim down
+                    price = price[0]
+                else:
+                    price = f"{price[0]} ~~{price[1]}~~"
+                cat_fact = await fetch_cat_fact()
+                emb=discord.Embed(title=item_name, url=item_url, 
+                description=f"# {price}\nPosted: {time_posted}\nSeller: [{seller_name}]({seller_url})\nCondition: {condition}", 
+                color=0x00ff00) # timestamp=datetime.datetime.now()
+                # emb.set_author(name=client.get_user(494483880410349595).name, icon_url=client.get_user(494483880410349595).display_avatar)
+                emb.set_author(name="speckly")
+                emb.set_footer(text=cat_fact)
+                emb.set_image(url=item_img)
+                CHANNEL = client.get_channel(self.channel)
+                await CHANNEL.send(embed=emb)
 
 class MyClient(discord.Client): # TODO: Use commands.Bot which is painful to transition to
     def __init__(self, *, intents: discord.Intents):
@@ -120,16 +130,25 @@ async def fetch_cat_fact():
         cat_fact = f"Meowerror: {e}"
     return cat_fact
 
-@client.tree.command(description='Create thread')
-@discord.app_commands.describe(item="Name of the item to query", delay="Delay in seconds")
-async def create_thread(interaction: discord.Interaction, item: str, delay: int):
+@client.tree.command(description='Create thread for monitoring')
+@discord.app_commands.describe(item="Name of the item to query", delay="Delay in seconds", mn="Minimum price to send an embed", mx="Maxmimum price to send an embed")
+async def create_thread(interaction: discord.Interaction, item: str, delay: int, mn: str = "0", mx: str = "999999"):
+    if not mn.isdigit() or not mx.isdigit():
+        await interaction.response.send_message("Input is not a float")
+    else:
+        mn = float(mn)
+        mx = float(mx)
+    if mn < 0:
+        await interaction.response.send_message("Min must be equal or greater than 0")
+    if not mx > mn:
+        await interaction.response.send_message("Max must be greater than the min")
     if interaction.user.id != 494483880410349595:
         await interaction.response.send_message("Not authorised to use this")
         print(f"Unauthorised access: {interaction.user.id}")
     else:
         await interaction.response.send_message(f"Creating thread: {item}")
         cid = interaction.channel_id
-        thread = Query(name=item, cid=cid, delay=delay)
+        thread = Query(name=item, cid=cid, delay=delay, mn=mn, mx=mx)
         thread.cb.start()
 
         last_task = client.tasks.get(item)
@@ -179,4 +198,5 @@ async def delete_thread(interaction: discord.Interaction, name: str=''):
             await interaction.response.send_message(f"Thread {name} does not exist. View list of threads with /view_threads")
         
 if __name__ == "__main__":
-    client.run(os.getenv('TOKEN'))
+    print(Query("hello", 12, 20, 0, 1000))
+    # client.run(os.getenv('TOKEN'))
