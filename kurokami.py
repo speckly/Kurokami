@@ -161,11 +161,11 @@ async def main(options: dict = {}):
             if not server_side:
                 print(f'All results loaded. Total: {page_limit} pages.')
             if serialize:
-                with open("./tests/soup.pkl", "wb") as f:
+                with open("./utils/soup.pkl", "wb") as f:
                     pickle.dump(search_results_soup, f)
                 print(f"Serialized: -i {item}")
         else:
-            with open("./tests/soup.pkl", "rb") as f:
+            with open("./utils/soup.pkl", "rb") as f:
                 search_results_soup = pickle.load(f)
         # Strip down
         browse_listings_divs = search_results_soup.find(class_="asm-browse-listings")

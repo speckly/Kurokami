@@ -87,7 +87,10 @@ class Query():
                 emb=discord.Embed(title=item_name, url=item_url, 
                 description=f"# {price}\nPosted: {time_posted}\nSeller: [{seller_name}]({seller_url})\nCondition: {condition}", 
                 color=0x00ff00) # timestamp=datetime.datetime.now()
-                # emb.set_author(name=client.get_user(494483880410349595).name, icon_url=client.get_user(494483880410349595).display_avatar)
+                try:
+                    emb.set_author(name=client.get_user(494483880410349595).name, icon_url=client.get_user(494483880410349595).display_avatar)
+                except:
+                    print("Get user failed?")
                 emb.set_author(name="speckly")
                 emb.set_footer(text=cat_fact)
                 emb.set_image(url=item_img)
