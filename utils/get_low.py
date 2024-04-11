@@ -2,12 +2,10 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 
-DIRECTORY = "../output/2024_03_27"
-SUFFIX = "_RTX 3070.csv"
-
-def get_low(DIRECTORY = "../output/2024_03_27", SUFFIX = "_RTX 3070.csv"):
-    csv_files = [f"{DIRECTORY}/{file}" for file in os.listdir(DIRECTORY) if file.endswith(SUFFIX)]
-
+def get_low(DIRECTORY = "../output/", SUFFIX = "_RTX 3070.csv", GRAPH = False): # Do not use True when in prod
+    csv_files = [f"{DIRECTORY}/{folder}/{file}" for folder in os.listdir(DIRECTORY) 
+    if os.path.isdir(os.path.join(DIRECTORY, folder)) for file in os.listdir(os.path.join(DIRECTORY, folder)) if file.endswith(SUFFIX)]
+    
     all_data = []
     for file in csv_files:
         df = pd.read_csv(file)
@@ -17,14 +15,19 @@ def get_low(DIRECTORY = "../output/2024_03_27", SUFFIX = "_RTX 3070.csv"):
             print(f"Price column not found while parsing {file}")
 
     all_data = pd.concat(all_data, ignore_index=True)
-
-    return pd.DataFrame(all_data, columns=['price'])['price'].quantile(0.1)
-    # Plot the box and whisker plot of the 'price' column
-    # price_df.boxplot(column='price')
-    # plt.title('Boxplot of Price')
-    # plt.ylabel('Price')
-    # plt.show()
-x = "../output"
-for file in [f for f in os.listdir(x) if os.path.isdir(os.path.join(x, f))]:
+    price_df = pd.DataFrame(all_data, columns=['price'])
     
-    print(file)
+    if GRAPH:
+        price_df.boxplot(column='price')
+        plt.title('Boxplot of Price')
+        plt.ylabel('Price')
+        plt.show() # Interrupts the return but ok, suffer then, im lazy
+
+    return price_df['price'].quantile(0.1)
+
+    
+
+if __name__ == "__main__":
+    DIRECTORY = "../output/"
+    SUFFIX = "_RTX 3070.csv"
+    print(f"The 10% low for RTX 3070 is {get_low(DIRECTORY=DIRECTORY, SUFFIX=SUFFIX, GRAPH=True)}")
