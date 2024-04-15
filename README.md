@@ -26,7 +26,7 @@ options:
   -c COMPARE, --compare Name of a .csv file output from this program
 ```
 
-For persistent monitoring, create a Discord [task](https://discordpy.readthedocs.io/en/stable/ext/tasks/index.html)
+For persistent monitoring, create a Discord [task](https://discordpy.readthedocs.io/en/stable/ext/tasks/index.html) with `/create_thread item`
 
 > [!WARNING]
 > Running Kurokami currently blocks Discord API interactions when querying. This is because Kurokami is not asynchronous at the moment. Do not integrate Kurokami into your Discord bot if you require other features
