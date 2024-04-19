@@ -1,6 +1,6 @@
 # Kurokami
 
-Kurokami is a web scraper and live monitoring tool for the marketplace Carousell. 
+Kurokami is a web scraper and live monitoring tool for the marketplace Carousell. Includes options such as price range
 > [!NOTE]
 > Support only for SG
 
