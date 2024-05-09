@@ -220,11 +220,12 @@ async def delete_thread(interaction: discord.Interaction, name: str=''):
     elif name == '':
         await interaction.response.send_message("Missing item name, stopping all current threads in this channel instead")
         cid = interaction.channel_id
-        for _, stored_item in client.tasks.items():
+        for name, stored_item in client.tasks.items():
             if stored_item.channel == cid:
                 stored_item.cb.cancel()
-                stored_item = None
-                await interaction.followup.send(f"Stopped thread {stored_item} located in current channel")
+                temp = stored_item
+                del client.tasks[name]
+                await interaction.followup.send(f"Stopped thread {temp} located in current channel")
 
     else:
         thread = client.tasks.get(name)
