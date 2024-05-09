@@ -30,4 +30,6 @@ def get_low(DIRECTORY = "../output/", SUFFIX = "_RTX 3070.csv", GRAPH = False): 
 if __name__ == "__main__":
     DIRECTORY = "../output/"
     SUFFIX = "_RTX 3070.csv"
+    # print(rf"""\n
+    # hello world""")
     print(f"The 10% low for RTX 3070 is {get_low(DIRECTORY=DIRECTORY, SUFFIX=SUFFIX, GRAPH=True)}")
