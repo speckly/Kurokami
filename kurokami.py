@@ -92,7 +92,7 @@ def parse_info(item_div, home, mode=1):
                 'item_name': img['title'] if img else "Title not found as this is a video",
                 'item_img': img['src'] if img else None,
                 'item_url': home+a[1]['href'],
-                'time_posted': seller_divs.div.p.get_text(),  # TODO: process into absolute datetime
+                'time_posted': seller_divs.div.p.get_text(),  # Attempt to get absolute datetime?
                 'condition': item_p[1].get_text(),
                 'price': re.findall(r"\$\d{0,3},?\d+\.?\d{,2}", a[1].get_text())
                 }  # 0 is discounted price, 1 is original price, if applicable
