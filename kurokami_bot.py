@@ -85,7 +85,7 @@ class Query():
         for result in new_results:
             seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result
 
-            current_price = float(price[0])
+            current_price = float(price[0].replace("$", "").replace(",", ""))
             if current_price > self.mn and current_price < self.mx:
                 if len(price) == 1: # Trim down
                     price = price[0]
@@ -109,7 +109,7 @@ Condition: {condition}""",
                 CHANNEL = client.get_channel(self.channel)
                 await CHANNEL.send(embed=emb)
 
-class MyClient(discord.Client): 
+class MyClient(discord.Client):
     """Author: Andrew Higgins
     https://github.com/speckly
     
@@ -223,9 +223,9 @@ async def delete_thread(interaction: discord.Interaction, name: str=''):
         for name, stored_item in client.tasks.items():
             if stored_item.channel == cid:
                 stored_item.cb.cancel()
-                temp = stored_item
                 del client.tasks[name]
-                await interaction.followup.send(f"Stopped thread {temp} located in current channel")
+                await interaction.followup.send(f"Stopped thread {name} located in current channel")
+                break
 
     else:
         thread = client.tasks.get(name)
