@@ -10,6 +10,8 @@ Kurokami is a web scraper and live monitoring tool for the marketplace Carousell
 
 # Setup
 
+Require python > 3.6 or you will be removing all the f strings in there
+
 ### Create the venv and install requirements in it
 It is recommended that a venv is used in order to avoid conflict
 ```bash
