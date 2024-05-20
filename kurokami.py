@@ -94,7 +94,7 @@ def parse_info(item_div, home, mode=1):
                 'item_url': home+a[1]['href'],
                 'time_posted': seller_divs.div.p.get_text(),  # Attempt to get absolute datetime?
                 'condition': item_p[1].get_text(),
-                'price': re.findall(r"\$\d{0,3},?\d+\.?\d{,2}", a[1].get_text())
+                'price': re.findall(r"FREE|\$\d{0,3},?\d+\.?\d{,2}", a[1].get_text())
                 }  # 0 is discounted price, 1 is original price, if applicable
     else:
         return {'seller_name': seller_divs.p.get_text(),
@@ -144,13 +144,13 @@ async def main(options: Union[dict, None] = None):
                     if inp.isdigit():
                         page_limit = int(inp)
                         break
-                    else:
-                        print("Invalid integer")
+                    print("Invalid integer")
+
         file_reg = r'^.?[a-zA-Z0-9_\\/\-]+\.csv$'
         output_file = args.output
         if output_file:
             if not re.match(file_reg, output_file):
-                print("Invalid CSV file name. Please provide a name consisting of letters, numbers, underscores, and dashes, ending with .csv")
+                print("Invalid CSV file name. Accepted chars: azAZ_-.csv")
                 sys.exit(1)
             elif not os.path.exists(output_file):
                 print(f"{output_file} does not exist")

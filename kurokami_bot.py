@@ -70,7 +70,7 @@ class Query():
             if len(csv_files) != 0:
                 break
             if folder != today:
-                print(f"{folder} does not contain any CSV files")
+                print(f"Note: {folder} does not contain any CSV files")
 
         if folder: # overwrite the current folder with the latest date known, for getting the last csv file
             folder = str(folder).replace("-", "_")
@@ -84,8 +84,8 @@ class Query():
 
         for result in new_results:
             seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result
-
-            current_price = float(price[0].replace("$", "").replace(",", ""))
+            
+            current_price = float(price[0].replace("$", "").replace(",", "").replace("FREE", "0"))
             if current_price > self.mn and current_price < self.mx:
                 if len(price) == 1: # Trim down
                     price = price[0]
@@ -101,9 +101,9 @@ Condition: {condition}""",
                 try:
                     emb.set_author(name=client.get_user(494483880410349595).name,
                         icon_url=client.get_user(494483880410349595).display_avatar)
-                except Exception as e:
-                    print(f"Get user failed? {type(e).__name__} Replace Exception") # TODO: observe
-                emb.set_author(name="speckly")
+                except AttributeError:
+                    print(f"Get user failed")
+                    emb.set_author(name="speckly")
                 emb.set_footer(text=cat_fact)
                 emb.set_image(url=item_img)
                 CHANNEL = client.get_channel(self.channel)
