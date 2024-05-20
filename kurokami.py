@@ -216,7 +216,8 @@ async def main(options: Union[dict, None] = None):
         if not server_side:
             print(f'Found {len(item_divs)} listings. Parsing...')
     except AttributeError:  # no item_divs at all
-        raise RuntimeError('The search has returned no result.')
+        print('The search has returned no result.')
+        sys.exit(1)
 
     parse_mode = 1
     tries = 1
@@ -233,8 +234,9 @@ async def main(options: Union[dict, None] = None):
             parse_mode = 2
             continue
     else:
-        raise RuntimeError('Parsing failed as it still faces IndexError after 5 tries.')
-
+        print('Parsing failed as it still faces IndexError after 5 tries.')
+        sys.exit(1)
+        
     df = pd.DataFrame(items_list)
     df.to_csv(output_file, index=False)
     if not server_side:
