@@ -258,7 +258,7 @@ async def main():
     
     Main function of Kurokami bot"""
     await client.login(os.getenv('TOKEN'))
-    await client.connect()   
+    await client.connect()
 
 if __name__ == "__main__":
     try:

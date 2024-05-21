@@ -14,6 +14,7 @@ def _venv_req():
         subprocess.check_call([pip, "install", "-r", "requirements.txt"],cwd=DIRECTORY)
     except subprocess.CalledProcessError:
         print("Fatal: Installation of requirements failed!")
+        exit()
 
 DIRECTORY: str = os.path.dirname(os.path.realpath(__file__))
 
