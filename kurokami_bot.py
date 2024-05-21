@@ -9,7 +9,8 @@ import os
 from datetime import datetime
 import time
 import sys
-# import asyncio
+import asyncio
+import json
 
 import discord
 from discord.ext import tasks
@@ -20,19 +21,24 @@ sys.path.append('..')
 import kurokami
 
 class Query():
+    """
+    Author: Andrew Higgins
+    https://github.com/speckly
+    
+    This class is responsible for using Kurokami and handling its data"""
     def __init__(self, name: str, cid: int, delay: float, mn: float, mx: float):
         self.name = name
         self.channel = cid
         self.delay = delay
         self.cb = tasks.loop(seconds=delay)(self._cb_impl)
-        self.mn = mn # Min
-        self.mx = mx # Max
+        self.min = mn # Min
+        self.max = mx # Max
 
     def __repr__(self):
-        return f"<Query name:{self.name} channel:{self.channel} delay:{self.delay} min:{self.mn} max:{self.mx}>"
+        return f"<Query name:{self.name} channel:{self.channel} delay:{self.delay} min:{self.min} max:{self.max}>"
 
     def __str__(self):
-        return f"Name: {self.name}, Channel: {self.channel}, Delay: {self.delay}, Min: {self.mn}, Max: {self.mx}"
+        return f"Name: {self.name}, Channel: {self.channel}, Delay: {self.delay}, Min: {self.min}, Max: {self.max}"
 
     async def _cb_impl(self):
         s = time.time()
@@ -72,6 +78,7 @@ class Query():
             if folder != today:
                 print(f"Note: {folder} does not contain any CSV files")
 
+        # TODO: Observe
         if folder: # overwrite the current folder with the latest date known, for getting the last csv file
             folder = str(folder).replace("-", "_")
             sorted_files = sorted(csv_files)
@@ -82,11 +89,12 @@ class Query():
         else:
             new_results = await kurokami.main({"i": item_name, "p": pages, "o": new_filename, "t": False, "s": False})
 
+        print(new_results)
         for result in new_results:
-            seller_name, seller_url, item_name, item_img, item_url, time_posted, condition, price = result
-            
+            seller_name, price, time_posted, condition, item_name, item_url, item_img, seller_url = result[1:] # exclude UID
+
             current_price = float(price[0].replace("$", "").replace(",", "").replace("FREE", "0"))
-            if current_price > self.mn and current_price < self.mx:
+            if self.min < current_price < self.max:
                 if len(price) == 1: # Trim down
                     price = price[0]
                 else:
@@ -102,12 +110,12 @@ Condition: {condition}""",
                     emb.set_author(name=client.get_user(494483880410349595).name,
                         icon_url=client.get_user(494483880410349595).display_avatar)
                 except AttributeError:
-                    print(f"Get user failed")
-                    emb.set_author(name="speckly")
+                    print("Get user failed")
+                    emb.set_author(name="New item")
                 emb.set_footer(text=cat_fact)
                 emb.set_image(url=item_img)
-                CHANNEL = client.get_channel(self.channel)
-                await CHANNEL.send(embed=emb)
+                channel = client.get_channel(self.channel)
+                await channel.send(embed=emb)
 
 class MyClient(discord.Client):
     """Author: Andrew Higgins
@@ -125,7 +133,14 @@ class MyClient(discord.Client):
         """Author: Andrew Higgins
         https://github.com/speckly"""
         print(f'{_timestamp()}: Logged in as {client.user} (ID: {client.user.id})')
-    
+        with open("queries.json", encoding="utf-8") as queries_file:
+            queries = json.load(queries_file)
+        for name, query_params in queries.items():
+            print(f"Resuming query {name}, params: {query_params}")
+            thread = Query(*query_params.values()) # file is sorted as vars returns in order
+            thread.cb.start()
+            self.tasks[name] = thread
+
     async def setup_hook(self):
         my_guild = discord.Object(id=1093515712900902912)
         self.tree.copy_global_to(guild=my_guild)
@@ -202,7 +217,7 @@ async def view_threads(interaction: discord.Interaction):
         await interaction.response.send_message("Not authorised to use this")
         print(f"Unauthorised access: {interaction.user.id}")
     elif client.tasks:
-        out_str = "\n".join([f"{name} in channel_id {query.channel}" for name, query in client.tasks.items()])
+        out_str = "\n".join([f"{name} in channel_id {query.channel}, every {query.delay} seconds. ${query.min}~${query.max}" for name, query in client.tasks.items()])
         await interaction.response.send_message(out_str)
     else:
         await interaction.response.send_message("No tasks are running")
@@ -236,5 +251,19 @@ async def delete_thread(interaction: discord.Interaction, name: str=''):
         else:
             await interaction.response.send_message(f"Thread {name} does not exist. View list of threads with /view_threads")
 
+
+async def main():
+    """Author: Andrew Higgins
+    https://github.com/speckly
+    
+    Main function of Kurokami bot"""
+    await client.login(os.getenv('TOKEN'))
+    await client.connect()   
+
 if __name__ == "__main__":
-    client.run(os.getenv('TOKEN'))
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Shutting down Kurokami")
+        with open("queries.json", "w", encoding="utf-8") as q_file:
+            json.dump({name:{attr:val for attr, val in vars(query).items() if attr != "cb"} for name, query in client.tasks.items()} ,q_file, indent=4)

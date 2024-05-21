@@ -12,7 +12,7 @@ body > find main > 1st div > 1st div > divs of items
         parent > 2nd div > button > span is number of likes
 total 24 or 25 results loaded once.
 
-Structure of Carousell HTML FORMAT 2 (parse_mode 2):
+Structure of Carousell HTML FORMAT 2 (parse_mode 2, found in legacy):
 body > find main > 1st div > 1st div > divs of items
     in divs of items > parents of each item
         parent > 1st div > 1st a is seller, 2nd a is item page
@@ -25,7 +25,7 @@ body > find main > div > button to view more
 view more button loads on top of existing, so can prob spam view more then gather all items at once
 MAY NOT BE FIRST DIV! Temp workaround is to get class name of the correct item divs
 
-My way:
+My way (modified 1 here):
 .asm-browse-listings > div > div > div of item > div with testid > div of item stripped
 '''
 
@@ -38,7 +38,6 @@ import asyncio
 import re
 import urllib
 import sys
-from pprint import pprint
 import pandas as pd
 from bs4 import BeautifulSoup
 from selenium import webdriver
@@ -76,7 +75,7 @@ async def request_page(url, page_limit):
     return BeautifulSoup(pg, "html.parser")
 
 
-def parse_info(item_div, home, mode=1):
+def parse_info(item_div, home,):
     """Author: Andrew Higgins
     https://github.com/speckly
 
@@ -86,24 +85,17 @@ def parse_info(item_div, home, mode=1):
     seller_divs = a[0].find_all('div', recursive=False)[1]
     item_p = a[1].find_all('p', recursive=False)
     img = item_div.find('img')
-    if mode == 1:
-        return {'seller_name': seller_divs.p.get_text(),
-                'seller_url': home+a[0]['href'],
-                'item_name': img['title'] if img else "Title not found as this is a video",
-                'item_img': img['src'] if img else None,
-                'item_url': home+a[1]['href'],
-                'time_posted': seller_divs.div.p.get_text(),  # Attempt to get absolute datetime?
-                'condition': item_p[1].get_text(),
-                'price': re.findall(r"FREE|\$\d{0,3},?\d+\.?\d{,2}", a[1].get_text())
-                }  # 0 is discounted price, 1 is original price, if applicable
-    else:
-        return {'seller_name': seller_divs.p.get_text(),
-                'seller_url': home+a[0]['href'],
-                'item_name': item_p[0].get_text(),
-                'item_url': home+a[1]['href'],
-                'time_posted': seller_divs.div.p.get_text(),
-                'condition': item_p[3].get_text(),
-                'price': re.findall(r"\d+", item_p[1].get_text().replace(',', ''))[0]}
+    item_url = home+a[1]['href']
+    return {'uid': re.search(r"\/p\/[^\/]+-(\d+)", item_url).group(1),
+            'seller_name': seller_divs.p.get_text(),
+            'price': re.findall(r"FREE|\$\d{0,3},?\d+\.?\d{,2}", a[1].get_text()),
+            'time_posted': seller_divs.div.p.get_text(),  # Attempt to get absolute datetime?
+            'condition': item_p[1].get_text(),
+            'item_name': img['title'] if img else "Title not found as this is a video",
+            'item_url': item_url,
+            'item_img': img['src'] if img else None,
+            'seller_url': home+a[0]['href'],
+            }  # 0 is discounted price, 1 is original price, if applicable
 
 async def main(options: Union[dict, None] = None):
     """options keys: i (item), p (page), o (output), t (test), s (serialize), c (compare)"""
@@ -121,7 +113,7 @@ async def main(options: Union[dict, None] = None):
             help=r'''For debugging of parsers which could break often due to the changing structure,
             the BS4 object is serialised for fast access, must not have -t''')
         ps.add_argument('-c', '--compare', type=str,
-            help='Name of a .csv file output from this program')
+            help='Name of a .csv file output from this program to compare with')
         args = ps.parse_args()
 
         if args.test:
@@ -146,7 +138,7 @@ async def main(options: Union[dict, None] = None):
                         break
                     print("Invalid integer")
 
-        file_reg = r'^.?[a-zA-Z0-9_\\/\-]+\.csv$'
+        file_reg = r'^.?[a-zA-Z0-9_\\/\- ]+\.csv$'
         output_file = args.output
         if output_file:
             if not re.match(file_reg, output_file):
@@ -219,38 +211,41 @@ async def main(options: Union[dict, None] = None):
         print('The search has returned no result.')
         sys.exit(1)
 
-    parse_mode = 1
     tries = 1
     while tries < 5:  # retrying loop as the div class position is random
         try:
             items_list = []
             for item_div in item_divs:
-                items_list.append(parse_info(item_div, home, parse_mode))
+                items_list.append(parse_info(item_div, home))
             break
         except IndexError:
             print(traceback.format_exc())
-            print(f'Parsing attempt {tries} failed due to class name error using parse mode {parse_mode}. Retrying with parse mode 2...\n')
+            print(f'Parsing attempt {tries} failed due to class name error.\n')
             tries += 1
-            parse_mode = 2
             continue
     else:
         print('Parsing failed as it still faces IndexError after 5 tries.')
         sys.exit(1)
-        
+ 
     df = pd.DataFrame(items_list)
     df.to_csv(output_file, index=False)
     if not server_side:
-        print(f'Parse success using mode {parse_mode}! Sample item parsed:')
-        pprint(items_list[0])
         print(f'Results saved to {output_file}')
 
     if compare_file:
+        if not server_side:
+            print("Comparing resuls with given csv")
         prev_df = pd.read_csv(compare_file)
-        df_standardized = df.iloc[:len([prev_df])] # cases where there might be extra old results appended to new df, remove these
-        new_rows = df_standardized[~df_standardized['item_name'].isin(prev_df['item_name'])]
-        return new_rows.values.tolist() # TODO: use dict
-    else:
-        return df.values.tolist()
+        # df_standardized = df.iloc[:len([prev_df])] # cases where there might be extra old results appended to new df, remove these
+        # new_rows = df_standardized[~df_standardized['uid'].isin(prev_df['uid'])]
+        # right exclusive join, old.column != new.column so we drop all cols named x as its from left
+        cols = ["seller_name","price","time_posted","condition","item_name","item_url","item_img","seller_url"]
+        df['uid'] = df['uid'].astype(str)
+        prev_df['uid'] = prev_df['uid'].astype(str)
+        new_rows = pd.merge(prev_df, df, on='uid', how="outer", indicator='ind').query('ind == "right_only"')
+        new_rows.drop(columns=["ind"]+[col + "_x" for col in cols])
+        return new_rows.values.tolist() # consider using dict?
+    return df.values.tolist()
 
 if __name__ == "__main__":
     compare_results = asyncio.run(main())
